@@ -1,0 +1,190 @@
+name: reharden
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      openlane_tag:
+        description: 'Openlane tag'
+        required: false
+        default: '2.0.8'
+
+jobs:
+  reharden:
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          # tt06:
+          - tt_um_wokwi_384437973887503361
+          - tt_um_wokwi_384711264596377601
+          - tt_um_wokwi_384804985843168257
+          - tt_um_wokwi_390913889347409921
+          - tt_um_wokwi_392873974467527681
+          - tt_um_wokwi_393815624518031361
+          # - tt_um_wokwi_394618582085551105 # skip: uses uio
+          # - tt_um_wokwi_394640918790880257 # skip: high utilization (170.24%)
+          - tt_um_wokwi_394704587372210177
+          - tt_um_wokwi_394707429798790145
+          - tt_um_wokwi_394830069681034241
+          - tt_um_wokwi_394888799427677185
+          - tt_um_wokwi_394898807123828737
+          - tt_um_wokwi_395034561853515777
+          - tt_um_wokwi_395054466384583681
+          # - tt_um_wokwi_395054508867644417 # skip: uses uio
+          # - tt_um_wokwi_395054564978002945 # skip: uses uio
+          - tt_um_wokwi_395054820631340033
+          - tt_um_wokwi_395054823569451009
+          - tt_um_wokwi_395054823837887489
+          - tt_um_wokwi_395055035944909825
+          - tt_um_wokwi_395055341723330561
+          - tt_um_wokwi_395055351144787969
+          - tt_um_wokwi_395055359324730369
+          # - tt_um_wokwi_395055455727667201 # skip: uses uio
+          - tt_um_wokwi_395055722430895105
+          - tt_um_wokwi_395058308283408385
+          - tt_um_wokwi_395061443288867841
+          # - tt_um_wokwi_395134712676183041 # skip: uses uio
+          - tt_um_wokwi_395142547244224513
+          - tt_um_wokwi_395179352683141121
+          # - tt_um_wokwi_395263962779770881 # skip: high utilization (185.46%)
+          - tt_um_wokwi_395355133883896833
+          # - tt_um_wokwi_395357890431011841 # skip: high utilization (299.64%)
+          - tt_um_wokwi_395414987024660481
+          - tt_um_wokwi_395444977868278785
+          - tt_um_wokwi_395514572866576385
+          - tt_um_wokwi_395522292785089537
+          # - tt_um_wokwi_395567106413190145 # skip: uses uio
+          - tt_um_wokwi_395599496098067457
+          # - tt_um_wokwi_395614106833794049 # skip: uses uio
+          - tt_um_wokwi_395615790979120129
+          - tt_um_wokwi_395618714068432897
+          # tt07:
+          - tt_um_jorga20j_prng
+          # - tt_um_njp_micro                # skip: high utilization (118.06%)
+          # - tt_um_rejunity_vga             # skip: high utilizaiton (147.46%)
+          - tt_um_wokwi_399336892246401025
+          - tt_um_wokwi_399447152724198401
+          - tt_um_wokwi_397140982440144897
+          - tt_um_wokwi_399488550855755777
+          # - tt_um_wokwi_399192124046955521 # skip: uses uio
+          - tt_um_wokwi_397142450561071105
+          - tt_um_wokwi_397268065185737729
+          - tt_um_wokwi_399518371950068737
+          - tt_um_wokwi_399469995038350337
+          # - tt_um_wokwi_399163158804194305 # skip: uses uio
+          - tt_um_wokwi_397774697322214401
+          # - tt_um_wokwi_399169514887574529 # skip: high utilization (89.80%)
+          # tt08:
+          - tt_um_emmyxu_obstacle_detection
+          - tt_um_fountaincoder_top_ad
+          - tt_um_ring_divider
+          - tt_um_wokwi_407306064811090945
+          - tt_um_wokwi_407760296956596225
+          - tt_um_wokwi_407852791999030273
+          - tt_um_wokwi_408118380088342529
+          - tt_um_wokwi_408216451206371329
+          - tt_um_wokwi_408231820749720577
+          # - tt_um_wokwi_408237988946759681 # skip: uses uio
+
+    runs-on: ubuntu-latest
+    env:
+      OPENLANE_TAG: ${{ github.event.inputs.openlane_tag || '2.0.8' }}
+      PDK_ROOT: /home/runner/.volare
+      PDK: sky130A
+
+      # Tool versions:
+      MAGIC_VERSION: 8.3.473
+      KLAYOUT_VERSION: 0.29.0
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Checkout tt-support-tools repo
+        uses: actions/checkout@v4
+        with:
+          repository: tinytapeout/tt-support-tools
+          path: ${{ matrix.project }}/tt
+          ref: tt08-micro-tiles-experiment
+
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.project }}
+        run: |
+          pip install -r tt/requirements.txt
+
+      - name: Install OpenLane ${{ env.OPENLANE_TAG }}
+        run: |
+          pip install openlane==$OPENLANE_TAG
+
+      - name: Make GDS with OpenLane
+        working-directory: ${{ matrix.project }}
+        run: |
+          git init
+          # tt_tool requires a remote to be set, and some commit to be present
+          git remote add origin https://github.com/TinyTapeout/dummy
+          git config user.email "bot@github.com"
+          git config user.name "Tiny Tapeout Bot"
+          git commit --allow-empty -m "Dummy commit"
+
+          if [ -f src/config.tcl ]; then
+            rm src/config.tcl
+          fi
+          cp ../golden_config.json src/config.json
+
+          python tt/tt_tool.py --create-user-config --harden --openlane2
+
+          # Fail if the final GDS file doesn't exist
+          if [ ! -f "runs/wokwi/final/gds/${{ matrix.project }}.gds" ]; then
+            exit 1
+          fi
+
+          # Fail is error.log isn't empty
+          if [ -s "runs/wokwi/error.log" ]; then
+            exit 1
+          fi
+
+          export PDK_VERSION=$(cat runs/wokwi/PDK_SOURCES | awk '{print $2}')
+          echo "PDK_VERSION=$PDK_VERSION" >> $GITHUB_ENV
+
+      - name: Set up PDK ${{ env.PDK_VERSION }}
+        working-directory: ${{ matrix.project }}
+        run: |
+          volare enable $PDK_VERSION
+
+      - name: Install magic-vlsi
+        run: |
+          sudo apt-get update && sudo apt-get install -y build-essential git csh libcairo2-dev tcl-dev tk-dev
+          git clone --branch ${MAGIC_VERSION} https://github.com/RTimothyEdwards/magic
+          cd magic && ./configure --with-cairo=no --disable-readline --without-x && make && sudo make install
+
+      - name: Install klayout
+        run: |
+          wget https://www.klayout.org/downloads/Ubuntu-22/klayout_${KLAYOUT_VERSION}-1_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y ./klayout_${KLAYOUT_VERSION}-1_amd64.deb
+
+      - name: Run tiny tapeout prechecks
+        working-directory: ${{ matrix.project }}/tt/precheck
+        run: |
+          set -o pipefail
+          pip install -r requirements.txt
+          python precheck.py --gds $GDS --lef $LEF
+          cp -R reports ${PROJECT_DIR}/precheck
+          cat reports/results.md | tee -a $GITHUB_STEP_SUMMARY
+        env:
+          PROJECT_DIR: ${{ github.workspace }}/${{ matrix.project }}
+          GDS: ${{ github.workspace }}/${{ matrix.project }}/runs/wokwi/final/gds/${{ matrix.project }}.gds
+          LEF: ${{ github.workspace }}/${{ matrix.project }}/runs/wokwi/final/lef/${{ matrix.project }}.lef
+
+      - name: Publish build logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: GDS_${{ matrix.project }}
+          path: |
+            ${{ matrix.project }}/runs/*
+            ${{ matrix.project }}/precheck/*
